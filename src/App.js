@@ -1,7 +1,6 @@
 import "./App.css";
 import React, { components } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-// import config from './config/config.js'
 import config from "./coreFIles/config";
 import Login from "./component/login";
 import Dashboard from "./component/dashboard";

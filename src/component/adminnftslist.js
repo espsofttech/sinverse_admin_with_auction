@@ -4,7 +4,7 @@ import Header from '../directives/header';
 import Footer from '../directives/footer';
 import Sidebar from '../directives/sidebar';
 import ReactDatatable from '@ashvin27/react-datatable';
-import { getAdminNftListAction, cancelOrderAction, putOnSaleAction } from '../Action/action';
+import { getAdminNftListAction, cancelOrderAction, putOnSaleAction, getBidDetailAction, bidAcceptAction } from '../Action/action';
 import { Link } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import moment from 'moment';
@@ -27,16 +27,19 @@ const customStyles = {
 const Adminnftslist = () => {
     let subtitle;
     const [form, setForm] = useState({});
+    const [BidList, setBidList] = useState([]);
     const [NftList, setNftList] = useState({});
     const [isPutonsale, setisPutonsale] = useState(0);
     const [itemDetails, setItemDetails] = useState([]);
+    const [bidDetails, setbidDetails] = useState(0);
     const [spinLoader, setSpinLoader] = useState(0);
+    const [isBidModel, setisBidModel] = useState(0);
     const [isDialogOpen, setDialogOpen] = useState(false);
     const [blockchainUpdationType, setblockchainUpdationType] = useState(0);
     const loginData = (!Cookies.get('loginSuccesssinverseAdmin')) ? [] : JSON.parse(Cookies.get('loginSuccesssinverseAdmin'));
     const [walletAddress, setwalletAddress] = useState('');
     const [CSVData, setCSVData] = useState([]);
-    
+
     useEffect(() => {
         getAdminNftList();
 
@@ -59,10 +62,10 @@ const Adminnftslist = () => {
                     if (i == 0) {
                         csvAllData[i] = ['Name', 'Owner Name', 'Creator Name', 'Price(BNB)', 'Date'];
                     }
-                    csvAllData[i + 1] = [csvData[i].name, csvData[i].ownername, csvData[i].creatorname, csvData[i].price,  moment(csvData[i].datetime).format('DD/MM/YYYY')];
+                    csvAllData[i + 1] = [csvData[i].name, csvData[i].ownername, csvData[i].creatorname, csvData[i].price, moment(csvData[i].datetime).format('DD/MM/YYYY')];
                 }
                 setCSVData(csvAllData);
-            }            
+            }
         }
     }
 
@@ -137,12 +140,22 @@ const Adminnftslist = () => {
                             <button onClick={() => { cancelNftOrder(item, 1) }} className='btn-sm btn-primary' data-toggle="modal" data-target="#putOnSale">Cancel Listing</button>
                             :
                             <>
-                                <Link to={`${config.baseUrl}editNFT/` + item.id}>
+                                <a href={`${config.baseUrl}editNFT/` + item.id}>
                                     <button className='btn-sm btn-primary'>Edit</button>
-                                </Link> &nbsp;
+                                </a> &nbsp;
 
                                 <button onClick={() => { putOnSaleModelAPI(item) }} className='btn-sm btn-primary' data-toggle="modal" data-target="#putOnSale">Put On Sale</button>
                             </>
+                        }
+
+                        {item.sell_type == 2 ?
+                            <>
+                                &nbsp;
+                                <button
+                                    type='button' onClick={() => getBidDetailAPI(item.id, item.owner_id)} data-toggle="modal" data-target="#exampleModalCenter" className="btn-sm btn-primary">
+                                    View Bid
+                                </button>
+                            </> : ''
                         }
 
                     </>
@@ -162,6 +175,14 @@ const Adminnftslist = () => {
             excel: false,
             print: false
 
+        }
+    }
+
+    const getBidDetailAPI = async (id, owner_id) => {
+        setisBidModel(1);
+        let res = await getBidDetailAction({ 'item_id': id, 'owner_id' : owner_id });
+        if (res.success) {
+            setBidList(res.data);
         }
     }
 
@@ -321,11 +342,110 @@ const Adminnftslist = () => {
 
     const closeModel = async () => {
         setisPutonsale(0);
+        setisBidModel(0);
     }
 
     function afterOpenModal() {
         subtitle.style.color = '#f00';
     }
+
+    const BidAcceptAPI = async (itemData) => {
+        let tokenId = itemData.token_id;
+        console.log(tokenId);
+        if (window.ethereum) {
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            let web3 = new Web3(window.ethereum);
+
+            let currentNetwork = await web3.currentProvider.chainId;
+            web3.eth.defaultAccount = accounts[0];
+            let chainId = config.chainId;
+
+            if (currentNetwork !== chainId) {
+                toast.error('Please select BNB testnet smartchain!!');
+                return false;
+            }
+            try {
+                setisBidModel(0);
+                setDialogOpen(true);
+                // setbidDetails(0);
+                let contractAddress = `${config.marketplaceContract}`
+                let from_address = accounts[0];
+                // if (accounts[0].toLowerCase() != ownerAddress.toLowerCase()) {
+                //     toast.error(`Please select (${ownerAddress.substring(0, 8) + '...' + ownerAddress.substr(ownerAddress.length - 8)}) address to your metamask wallet.`);
+                //     setDialogOpen(false);
+                //     setbidDetails(1);
+                //     return false;
+                // }
+                const contract = await new web3.eth.Contract(config.abiMarketplace, contractAddress);
+                let tx_builder = await contract.methods.acceptBid(tokenId.toString());
+                let encoded_tx = tx_builder.encodeABI();
+                let gasPrice = await web3.eth.getGasPrice();
+                let gasLimit = await web3.eth.estimateGas({
+                    gasPrice: web3.utils.toHex(gasPrice),
+                    to: contractAddress,
+                    from: from_address,
+                    chainId: chainId,
+                    data: encoded_tx
+                });
+
+                const txData = await web3.eth.sendTransaction({
+                    gasPrice: web3.utils.toHex(gasPrice),
+                    gas: web3.utils.toHex(gasLimit),
+                    to: contractAddress,
+                    from: from_address,
+                    chainId: chainId,
+                    data: encoded_tx
+                });
+
+                if (txData.transactionHash) {
+                    let response = await bidAcceptAction({ 
+                        'user_id': loginData?.id, 
+                        'email': loginData?.email, 
+                        'item_id': itemData.item_id, 
+                        "bid_id": itemData.bid_id, 
+                        "hash": txData.transactionHash, 
+                        'owner_address': 'owner_address' 
+                    });
+                    if (response.success) {
+                        setTimeout(() => {
+                            // window.location.reload();
+                        }, 1000);
+                        toast.success(response?.msg, {});
+                    } else {
+                        setisBidModel(1);
+                        toast.error(response?.msg, {});
+                        setbidDetails(1);
+                    }
+                } else {
+                    setisBidModel(1);
+                    toast.error('Something went wrong please try again3.');
+                    setDialogOpen(false);
+                    setbidDetails(1);
+                    return false;
+                }
+            } catch (err) {
+                if (err.message.toString().split('insufficient funds')[1]) {
+                    toast.error('Transaction reverted : ' + err.message)
+                } else {
+                    if (err.toString().split('execution reverted:')[1]) {
+                        toast.error('Transaction reverted : ' + (err.toString().split('execution reverted:')[1]).toString().split('{')[0])
+                    } else {
+                        toast.error(err.message);
+                    }
+                }
+                setDialogOpen(false);
+                setbidDetails(1);
+                setisBidModel(1);
+                return false;
+            }
+        } else {
+            toast.error('Please connect your metamask wallet which you set at the time of registration.');
+            setDialogOpen(false);
+            setbidDetails(1);
+            setisBidModel(1);
+            return false;
+        }
+    }     
 
     return (
 
@@ -382,14 +502,14 @@ const Adminnftslist = () => {
                                 <div className="col-lg-12 col-12">
                                     <div className="box">
                                         <div className="box-body">
-                                            <Link to={`${config.baseUrl}createNFT`}>
+                                            <a href={`${config.baseUrl}createNFT`}>
                                                 <button className='btn btn-primary pull-right'>Add+</button>
-                                            </Link>
+                                            </a>
                                             <br /><br />
                                             {CSVData.length > 0 ?
                                                 <CSVLink data={CSVData} > <button className="btn-sm btn-primary"> Excel <i class="fa fa-file-excel-o" aria-hidden="true"></i></button> <br /><br /></CSVLink>
                                                 : ""
-                                            }                                            
+                                            }
                                             <ReactDatatable
                                                 config={configForTable}
                                                 records={NftList}
@@ -475,6 +595,64 @@ const Adminnftslist = () => {
 
                 </div>
             </div>
+
+            <div className={isBidModel == 0 ? "modal fade" : "modal fade show"} id="productShareSheet" style={{ display: isBidModel == 0 ? 'none' : 'block', paddingTop: '50px' }} tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true" data-backdrop="false">
+                <div className="modal-dialog modal-lg" role="document">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h5 className="modal-title" id="exampleModalLabel">Bids Details</h5>
+                            <button type="button" className="close bidsclose" data-dismiss="modal" style={{
+                                fontSize: '26px'
+                            }} aria-label="Close " onClick={() => closeModel()} >
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Image</th>
+                                            <th>Username</th>
+                                            <th>Title</th>
+                                            <th>Bid Price</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {BidList.length === 0 ?
+                                            <tr >
+                                                <td colspan="6" className="text-center"><p>No data found!!</p></td></tr> :
+                                            BidList.map(item => (
+                                                <tr>
+                                                    <td>
+                                                        {!item.profile_pic || item.profile_pic == '' || item.profile_pic == null || item.profile_pic == undefined || item.profile_pic == 'undefined' || item.profile_pic == 'null' ?
+                                                            <img width="50px" height="50px" src={`images/default-user-icon.jpg`}></img>
+                                                            :
+                                                            <img width="50px" height="50px" src={`${config.imageUrl}` + item.profile_pic}></img>
+                                                        }
+                                                    </td>
+                                                    <td>{item.first_name}</td>
+                                                    <td>{item.item_name}</td>
+                                                    <td>{item.bid_price} BNB</td>
+                                                    <td>
+                                                        {isDialogOpen ?
+                                                            <button id={'acceptId' + item.bid_id} disabled className="btn btn-primary">Processing...</button>
+                                                            :
+                                                            <button type='submit' id={'acceptId' + item.bid_id} onClick={() => BidAcceptAPI(item)} className="btn btn-primary acceptId">Accept</button>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 
         </>
     )

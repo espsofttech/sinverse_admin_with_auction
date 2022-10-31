@@ -92,10 +92,10 @@ const Addcategory = () => {
             priceError = "Price field is required."
         }
         if (nftdata.sell_type == 2) {
-            if (nftdata.start_date === '') {
+            if (nftdata.start_date === '' || nftdata.start_date === null) {
                 startDateError = "Start date required."
             }
-            if (nftdata.expiry_date === '') {
+            if (nftdata.expiry_date === '' || nftdata.expiry_date === null) {
                 expiryDateError = "Expiry date required."
             }
         }
@@ -317,7 +317,7 @@ const Addcategory = () => {
                                                             </span>
                                                         </div>
 
-                                                        {/* <div className="form-group row mb-1">
+                                                        <div className="form-group row mb-1">
                                                             <label className="col-form-label col-md-12">
                                                                 Sell Type
                                                             </label>
@@ -346,7 +346,7 @@ const Addcategory = () => {
                                                                     <DatePicker onChange={handleChangeExpiryDate} minDate={currentDate} value={nftdata.expiry_date} autoComplete="off" id="expiryDateError" name="expiry_date" className="form-control" />
                                                                     <span className="validationErr">{validatioError.expiryDateError}</span>
                                                                 </div></>
-                                                            : ""} */}
+                                                            : ""}
 
                                                         <div className="form-group row mb-1">
                                                             <label className="col-form-label col-md-12">

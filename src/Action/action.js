@@ -196,3 +196,11 @@ export const updatesociallinksAction = (data) => {
 export const getSocialLinksAction = (data) => {
   return getRequest('getsociallinks', data).then(res => { return res.data })
 }
+
+export const getBidDetailAction = (data) => {
+  return postRequest('getUserBidsForAdmin', data).then(res => { return res.data })
+}
+
+export const bidAcceptAction = (data) => {
+  return postRequest('bidAcceptFromAdmin', data).then(res => { return res.data })
+}

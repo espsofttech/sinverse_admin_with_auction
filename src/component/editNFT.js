@@ -80,6 +80,8 @@ const EditNFT = () => {
         let categoryError = "";
         let priceError = "";
         let imageError = "";
+        let startDateError = "";
+        let expiryDateError = "";
 
         if (NftDetails?.title === '') {
             titleError = "Title field is required."
@@ -96,6 +98,14 @@ const EditNFT = () => {
         if (image_file == '' && NftDetails?.image == "") {
             imageError = "Image field is required."
         }
+        if (NftDetails.sell_type == 2) {
+            if (NftDetails.start_date === '' || NftDetails.start_date === null) {
+                startDateError = "Start date required."
+            }
+            if (NftDetails.expiry_date === '' || NftDetails.expiry_date === null) {
+                expiryDateError = "Expiry date required."
+            }
+        }        
         if (titleError || descriptionError || categoryError || priceError || imageError) {
             setvalidatioError({
                 titleError, descriptionError, categoryError, priceError, imageError
@@ -293,7 +303,7 @@ const EditNFT = () => {
                                                             </span>
                                                         </div>
 
-                                                        {/* <div className="form-group row mb-1">
+                                                        <div className="form-group row mb-1">
                                                             <label className="col-form-label col-md-12">
                                                                 Sell Type
                                                             </label>
@@ -322,7 +332,7 @@ const EditNFT = () => {
                                                                     <DatePicker onChange={handleChangeExpiryDate} minDate={currentDate} value={NftDetails.expiry_date} autoComplete="off" id="expiryDateError" name="expiry_date" className="form-control" />
                                                                     <span className="validationErr">{validatioError.expiryDateError}</span>
                                                                 </div></>
-                                                            : ""} */}
+                                                            : ""}
 
                                                         <div className="form-group row mb-1">
                                                             <label className="col-form-label col-md-12">
